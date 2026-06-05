@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wouter — Travel Tracker 2026</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --black: #0a0a0a;
+    --surface: #111111;
+    --card: #181818;
+    --border: #2a2a2a;
+    --orange: #F97E2A;
+    --orange-dim: rgba(249,126,42,0.15);
+    --text: #f0f0f0;
+    --muted: #888;
+    --green: #22c55e;
+    --blue: #3b82f6;
+    --red: #ef4444;
+    --purple: #a855f7;
+    --yellow: #eab308;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--black);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--orange);
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .header-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+  }
+  .header-title {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+  .save-indicator {
+    font-size: 11px;
+    color: var(--orange);
+    opacity: 0;
+    transition: opacity 0.3s;
+    letter-spacing: 0.1em;
+  }
+  .save-indicator.visible { opacity: 1; }
+
+  /* LAYOUT */
+  .main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  /* STATS ROW */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .stat-value.orange { color: var(--orange); }
+  .stat-value.green { color: var(--green); }
+
+  /* SECTION HEADER */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .btn-add {
+    background: var(--orange);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: opacity 0.15s;
+  }
+  .btn-add:hover { opacity: 0.85; }
+
+  /* TIMELINE */
+  .timeline {
+    position: relative;
+    margin-bottom: 40px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+  }
+
+  /* TRIP GROUP */
+  .trip-group {
+    margin-bottom: 24px;
+  }
+  .trip-month {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--orange);
+    text-transform: uppercase;
+    margin-left: 48px;
+    margin-bottom: 12px;
+    padding-top: 8px;
+  }
+
+  /* BOOKING CARD */
+  .booking-card {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .booking-dot {
+    width: 40px;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 14px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin: 0 auto;
+    flex-shrink: 0;
+  }
+  .dot.flight { background: var(--blue); }
+  .dot.train { background: var(--green); }
+  .dot.hotel { background: var(--purple); }
+  .dot.festival { background: var(--orange); }
+  .dot.event { background: var(--yellow); }
+
+  .booking-content {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 12px;
+    align-items: center;
+    transition: border-color 0.15s;
+  }
+  .booking-content:hover { border-color: #3a3a3a; }
+
+  .booking-main { min-width: 0; }
+  .booking-route {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .booking-date {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  .booking-meta { min-width: 0; }
+  .booking-number {
+    font-size: 12px;
+    color: var(--orange);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .booking-code {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  .booking-status { min-width: 0; }
+  .status-badge {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+  .status-confirmed { background: rgba(34,197,94,0.15); color: var(--green); }
+  .status-pending { background: rgba(234,179,8,0.15); color: var(--yellow); }
+  .status-cancelled { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  .booking-type-badge {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    margin-top: 5px;
+  }
+  .type-flight { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .type-train { background: rgba(34,197,94,0.15); color: var(--green); }
+  .type-hotel { background: rgba(168,85,247,0.15); color: var(--purple); }
+  .type-festival { background: var(--orange-dim); color: var(--orange); }
+  .type-event { background: rgba(234,179,8,0.15); color: var(--yellow); }
+
+  .booking-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .btn-icon {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--muted);
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .btn-icon:hover { border-color: var(--orange); color: var(--orange); }
+  .btn-icon.delete:hover { border-color: var(--red); color: var(--red); }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 24px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .form-input, .form-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--orange); }
+  .form-select option { background: var(--card); }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 24px;
+  }
+  .btn-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    padding: 8px 18px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.15s;
+  }
+  .btn-cancel:hover { border-color: var(--text); color: var(--text); }
+  .btn-save {
+    background: var(--orange);
+    border: none;
+    border-radius: 6px;
+    color: #000;
+    padding: 8px 18px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: opacity 0.15s;
+  }
+  .btn-save:hover { opacity: 0.85; }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+  }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; }
+
+  /* FILTER BAR */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    padding: 5px 12px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    border-color: var(--orange);
+    color: var(--orange);
+    background: var(--orange-dim);
+  }
+
+  /* LOADING */
+  .loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    font-size: 11px;
+  }
+  @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+  .loading { animation: pulse 1.5s infinite; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="logo">Travel OS</span>
+    <div class="header-divider"></div>
+    <span class="header-title">Wouter — 2026</span>
+  </div>
+  <span class="save-indicator" id="saveIndicator">✓ SAVED</span>
+</header>
+
+<div class="main">
+
+  <!-- STATS -->
+  <div class="stats-row" id="statsRow">
+    <div class="stat-card">
+      <div class="stat-label">Total Bookings</div>
+      <div class="stat-value orange" id="statTotal">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Upcoming</div>
+      <div class="stat-value" id="statUpcoming">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Flights</div>
+      <div class="stat-value" id="statFlights">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Festivals</div>
+      <div class="stat-value green" id="statFestivals">—</div>
+    </div>
+  </div>
+
+  <!-- FILTER + ADD -->
+  <div class="section-header">
+    <span class="section-title">Bookings</span>
+    <button class="btn-add" onclick="openModal()">+ Add Booking</button>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" onclick="setFilter('flight', this)">Flights</button>
+    <button class="filter-btn" onclick="setFilter('train', this)">Trains</button>
+    <button class="filter-btn" onclick="setFilter('hotel', this)">Hotels</button>
+    <button class="filter-btn" onclick="setFilter('festival', this)">Festivals</button>
+    <button class="filter-btn" onclick="setFilter('event', this)">Events</button>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="timeline" id="timeline">
+    <div class="loading" id="loadingState">Loading bookings...</div>
+  </div>
+
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">New Booking</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-select" id="fType">
+          <option value="flight">✈ Flight</option>
+          <option value="train">🚄 Train</option>
+          <option value="hotel">🏨 Hotel</option>
+          <option value="festival">🎧 Festival</option>
+          <option value="event">📍 Event</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="fStatus">
+          <option value="confirmed">Confirmed</option>
+          <option value="pending">Pending</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label class="form-label">Route / Description</label>
+        <input class="form-input" id="fRoute" placeholder="e.g. AMS → CPH or Echelon Festival Bad Aibling">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date (from)</label>
+        <input class="form-input" type="date" id="fDateFrom">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date (to / return)</label>
+        <input class="form-input" type="date" id="fDateTo">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Flight / Train Number</label>
+        <input class="form-input" id="fNumber" placeholder="e.g. SK2736, IC 631">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Booking Code / PNR</label>
+        <input class="form-input" id="fCode" placeholder="e.g. XKBQ7F">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Airline / Operator</label>
+        <input class="form-input" id="fOperator" placeholder="e.g. SAS, KLM, NS, DB">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location / City</label>
+        <input class="form-input" id="fLocation" placeholder="e.g. Copenhagen">
+      </div>
+      <div class="form-group full">
+        <label class="form-label">Notes</label>
+        <input class="form-input" id="fNotes" placeholder="e.g. Business Standard, window seat, check-in online 24h before">
+      </div>
+      <div class="form-group full">
+        <label class="form-label">Cost (€)</label>
+        <input class="form-input" type="number" id="fCost" placeholder="0">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveBooking()">Save Booking</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let allBookings = [];
+let currentFilter = 'all';
+let editingId = null;
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function showSave() {
+  const el = document.getElementById('saveIndicator');
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 2000);
+}
+
+async function loadBookings() {
+  const { data, error } = await sb.from('travel_bookings').select('*').order('date_from', { ascending: true });
+  if (error) { console.error(error); document.getElementById('loadingState').textContent = 'Error loading — check Supabase config'; return; }
+  allBookings = data || [];
+  renderAll();
+}
+
+function renderAll() {
+  updateStats();
+  renderTimeline();
+}
+
+function updateStats() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('statTotal').textContent = allBookings.length;
+  document.getElementById('statUpcoming').textContent = allBookings.filter(b => b.date_from >= today).length;
+  document.getElementById('statFlights').textContent = allBookings.filter(b => b.type === 'flight').length;
+  document.getElementById('statFestivals').textContent = allBookings.filter(b => b.type === 'festival').length;
+}
+
+function setFilter(type, btn) {
+  currentFilter = type;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const timeline = document.getElementById('timeline');
+  const filtered = currentFilter === 'all' ? allBookings : allBookings.filter(b => b.type === currentFilter);
+
+  if (filtered.length === 0) {
+    timeline.innerHTML = `<div class="empty-state"><div class="empty-icon">✈</div>No bookings yet — add your first one.</div>`;
+    return;
+  }
+
+  const grouped = {};
+  filtered.forEach(b => {
+    if (!b.date_from) return;
+    const d = new Date(b.date_from);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    if (!grouped[key]) grouped[key] = { label, items: [] };
+    grouped[key].items.push(b);
+  });
+
+  const sortedKeys = Object.keys(grouped).sort();
+  let html = '';
+  sortedKeys.forEach(key => {
+    const g = grouped[key];
+    html += `<div class="trip-group"><div class="trip-month">${g.label}</div>`;
+    g.items.forEach(b => { html += renderCard(b); });
+    html += `</div>`;
+  });
+
+  timeline.innerHTML = html;
+}
+
+function renderCard(b) {
+  const dateStr = formatDateRange(b.date_from, b.date_to);
+  return `
+  <div class="booking-card">
+    <div class="booking-dot"><div class="dot ${b.type || 'flight'}"></div></div>
+    <div class="booking-content">
+      <div class="booking-main">
+        <div class="booking-route">${b.route || '—'}</div>
+        <div class="booking-date">${dateStr}${b.location ? ' · ' + b.location : ''}</div>
+      </div>
+      <div class="booking-meta">
+        <div class="booking-number">${b.flight_number || b.train_number || '—'}</div>
+        <div class="booking-code">${b.booking_code ? 'PNR: ' + b.booking_code : b.operator || ''}</div>
+      </div>
+      <div class="booking-status">
+        <span class="status-badge status-${b.status || 'confirmed'}">${b.status || 'confirmed'}</span>
+        <div><span class="booking-type-badge type-${b.type}">${b.type}</span></div>
+      </div>
+      <div class="booking-actions">
+        <button class="btn-icon" onclick="editBooking('${b.id}')" title="Edit">✎</button>
+        <button class="btn-icon delete" onclick="deleteBooking('${b.id}')" title="Delete">✕</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function formatDateRange(from, to) {
+  if (!from) return '—';
+  const f = new Date(from);
+  const fStr = `${f.getDate()} ${MONTH_NAMES[f.getMonth()]}`;
+  if (!to || to === from) return fStr;
+  const t = new Date(to);
+  const tStr = `${t.getDate()} ${MONTH_NAMES[t.getMonth()]}`;
+  return `${fStr} → ${tStr}`;
+}
+
+function openModal(id) {
+  editingId = id || null;
+  document.getElementById('modalTitle').textContent = id ? 'Edit Booking' : 'New Booking';
+  if (id) {
+    const b = allBookings.find(x => x.id === id);
+    if (b) {
+      document.getElementById('fType').value = b.type || 'flight';
+      document.getElementById('fStatus').value = b.status || 'confirmed';
+      document.getElementById('fRoute').value = b.route || '';
+      document.getElementById('fDateFrom').value = b.date_from || '';
+      document.getElementById('fDateTo').value = b.date_to || '';
+      document.getElementById('fNumber').value = b.flight_number || b.train_number || '';
+      document.getElementById('fCode').value = b.booking_code || '';
+      document.getElementById('fOperator').value = b.operator || '';
+      document.getElementById('fLocation').value = b.location || '';
+      document.getElementById('fNotes').value = b.notes || '';
+      document.getElementById('fCost').value = b.cost || '';
+    }
+  } else {
+    document.getElementById('fType').value = 'flight';
+    document.getElementById('fStatus').value = 'confirmed';
+    ['fRoute','fDateFrom','fDateTo','fNumber','fCode','fOperator','fLocation','fNotes','fCost'].forEach(id => { document.getElementById(id).value = ''; });
+  }
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.add('hidden');
+  editingId = null;
+}
+
+function editBooking(id) { openModal(id); }
+
+async function saveBooking() {
+  const type = document.getElementById('fType').value;
+  const numberVal = document.getElementById('fNumber').value;
+  const record = {
+    type,
+    status: document.getElementById('fStatus').value,
+    route: document.getElementById('fRoute').value,
+    date_from: document.getElementById('fDateFrom').value || null,
+    date_to: document.getElementById('fDateTo').value || null,
+    flight_number: type === 'flight' ? numberVal : null,
+    train_number: type === 'train' ? numberVal : null,
+    booking_code: document.getElementById('fCode').value,
+    operator: document.getElementById('fOperator').value,
+    location: document.getElementById('fLocation').value,
+    notes: document.getElementById('fNotes').value,
+    cost: parseFloat(document.getElementById('fCost').value) || null,
+  };
+
+  let error;
+  if (editingId) {
+    const res = await sb.from('travel_bookings').update(record).eq('id', editingId);
+    error = res.error;
+  } else {
+    const res = await sb.from('travel_bookings').insert(record);
+    error = res.error;
+  }
+
+  if (error) { alert('Save failed: ' + error.message); return; }
+  closeModal();
+  showSave();
+  await loadBookings();
+}
+
+async function deleteBooking(id) {
+  if (!confirm('Delete this booking?')) return;
+  await sb.from('travel_bookings').delete().eq('id', id);
+  showSave();
+  await loadBookings();
+}
+
+// Close modal on overlay click
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+loadBookings();
+</script>
+</body>
+</html>
